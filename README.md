@@ -14,6 +14,3 @@ Each course that the user selected is accompanied by a:
 - Latest average homework hours per week
 - AI-generated aggregate latest student opinion
 - Overall score
-
-
-Software tools used: Python, Selenium WebDriver, Beautiful Soup, OpenAI API, JSON
