@@ -1,273 +1,200 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
-from confidential import MY_NETID_PASSWORD
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import TimeoutException
-import json
+from time import time
+from tqdm import tqdm
+import concurrent.futures
+import random
 
-import time
-# from pprint import pprint
+from confidential import NETID, NETID_PASSWORD
 
-MY_NETID = 'xzy2201'
 
 CAESAR_LOGIN_URL = 'https://caesar.ent.northwestern.edu/psc/CS860PRD/EMPLOYEE/SA/c/NUI_FRAMEWORK.PT_LANDINGPAGE.GBL'
 
 CSS_SELECTORS = {
     'netid_input_field': '#idToken1',
-    'password_input_field': '#idToken2',
+    'netid_password_input_field': '#idToken2',
     'log_in_button': '#content > div > form > fieldset > div:nth-child(5)',
     'no__other_people_use_this_device_button': '#dont-trust-browser-button',
     'manage_classes_button': r'#PTNUI_LAND_REC14\$0_row_8',
-    'search_ctecs_button': r'#win5div\$ICField\$11\$\$7',
-    'academic_career_dropdown': '#NW_CT_PB_SRCH_ACAD_CAREER', 
-    'first_academic_subject_dropdown_option': '#NW_CT_PB_SRCH_SUBJECT > option:nth-child(2)',
+    'search_ctecs_button': r"[id^='win'][id$='divPTGP_STEPS_L1_row\$7']",
+    'academic_career_dropdown': '#NW_CT_PB_SRCH_ACAD_CAREER',
     'academic_subject_dropdown': '#NW_CT_PB_SRCH_SUBJECT',
     'search_button': '#win0divNW_CT_PB_SRCH_SRCH_BTN',
+    'first_course_button': r'#NW_CT_PV_DRV\$0_row_0',
+    'course_buttons': r"[id^='NW_CT_PV_DRV\$0_row_']",
     'course_button': r'#NW_CT_PV_DRV\$0_row_',
+    'first_ctec_button': r'#NW_CT_PV4_DRV\$0_row_0',
+    'ctec_buttons': r"[id^='NW_CT_PV4_DRV\$0_row_']",
     'ctec_button': r'#NW_CT_PV4_DRV\$0_row_',
-    'term': r'#MYDESCR2\$',
-    'rating_table': "[id^='BlockLayoutController'][id*='_BaseReportBlockUCPreview_TableStat_'] > tbody",
-    'course_rating_average': "tr.CondensedTabularEvenRows > td",
-    'course_rating_student_count': "tr.CondensedTabularOddRows > td",
-    'student_opinion': "[id^='BlockLayoutController'][id*='_BaseReportBlockUCPreview_CommentBoxbac5fa25-de6b-4010-bf3d-3e511cb8d63dReportSummary_'] > tbody > tr > td",
-    'table': "[id^='BlockLayoutController'][id*='_BaseReportBlockUCPreview_TableFrequency_'] > tbody",
-    'number_of_weinberg_students': 'tr:nth-child(10) > td:nth-child(2)',
-    'number_of_mccormick_students': 'tr:nth-child(5) > td:nth-child(2)',
-    'number_of_medill_students': 'tr:nth-child(6) > td:nth-child(2)',
-    'number_of_comm_students': 'tr:nth-child(2) > td:nth-child(2)',
-    'number_of_sesp_students': 'tr:nth-child(1) > td:nth-child(2)',
-    'number_of_bienen_students': 'tr:nth-child(7) > td:nth-child(2)',
-    'number_of_freshmen': 'tr:nth-child(1) > td:nth-child(2)',
-    'number_of_sophomores': 'tr:nth-child(2) > td:nth-child(2)',
-    'number_of_juniors': 'tr:nth-child(3) > td:nth-child(2)',
-    'number_of_seniors': 'tr:nth-child(4) > td:nth-child(2)',
-
+    'quarter': r'#MYDESCR2\$',
+    'course': r'#MYDESCR\$',
+    'professor': r'#CTEC_INSTRUCTOR\$',
     'back_arrow_button': '#win0hdrdivPT_WORK_PT_BUTTON_BACK > span'
-
-    # 'course_button': r'#MYLABEL\$',
-    # 'ctecs': r"[id^='NW_CT_PV4_DRV\$0_row_']",
-    # 'ctec': r'#NW_CT_PV4_DRV\$0_row_',
-    # 'term_container': r'#MYDESCR2\$',
-    # 'undergraduate_school_demographics_image': "[id^='report_'] > div:nth-child(12) > div.report-block > div.FrequencyBlockRow > div > div.FrequencyBlock_chart > img",
-    # 'class_demographics_image': "[id^='report_'] > div:nth-child(13) > div.FrequencyBlockRow > div > div.FrequencyBlock_chart > img"
 }
 
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
-results = {}
+LATEST_QUARTERS_WITH_CTECS_PUBLISHED = {
+    'Spring': '2024 Spring',
+    'Winter': '2024 Winter',
+    'Fall': '2023 Fall'
+}
 
-def scrape():
-    driver.maximize_window()
-    driver.get(CAESAR_LOGIN_URL)
-    WebDriverWait(driver, 10000).until(EC.presence_of_element_located((By.CSS_SELECTOR, CSS_SELECTORS['netid_input_field']))).send_keys(MY_NETID)
-    driver.find_element(By.CSS_SELECTOR, CSS_SELECTORS['password_input_field']).send_keys(MY_NETID_PASSWORD)
-    driver.find_element(By.CSS_SELECTOR, CSS_SELECTORS['log_in_button']).click()
-    WebDriverWait(driver, 10000).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_SELECTORS['no__other_people_use_this_device_button']))).click()
-    WebDriverWait(driver, 10000).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_SELECTORS['manage_classes_button']))).click()
-    wait_for_loading()
-    driver.find_element(By.CSS_SELECTOR, CSS_SELECTORS['search_ctecs_button']).click()
+NUMBER_OF_DRIVERS = 17
+# NUMBER_OF_DRIVERS = 2
 
-    for academic_subject in ['COMP_SCI']:
 
-        wait_for_loading()
-        Select(driver.find_element(By.CSS_SELECTOR, CSS_SELECTORS['academic_career_dropdown'])).select_by_visible_text('Undergraduate')
-        wait_for_loading()
+# academic_subjects_to_scrape = [
+#     'AAL', 'AFST', 'AF_AM_ST', 'ALT_CERT', 'AMER_ST', 'AMES', 'ANIM_ART', 'ANTHRO', 'ARABIC', 'ART', 'ART_HIST', 'ASIAN_AM', 'ASIAN_LC', 'ASIAN_ST', 
+#     'ASTRON', 'BIOL_SCI', 'BLK_ST', 'BMD_ENG', 'BUS_INST', 'CAT', 'CFS', 'CHEM', 'CHEM_ENG', 'CHINESE', 'CHRCH_MU', 'CIV_ENG', 'CIV_ENV', 'CLASSICS', 
+#     'CMN', 'COG_SCI', 'COMM_SCI', 'COMM_ST', 'COMP_ENG', 'COMP_LIT', 'COMP_SCI', 'CONDUCT', 'COOP', 'CRDV', 'CSD', 'DANCE', 'DATA_ENG', 'DSGN', 'EARTH', 
+#     'ECE', 'ECON', 'EDIT', 'EECS', 'ELEC_ENG', 'ENGLISH', 'ENTREP', 'ENVR_POL', 'ENVR_SCI', 'EPICS', 'ES_APPM', 'EUR_ST', 'EUR_TH', 'FRENCH', 'GBL_HLTH', 
+#     'GEN_CMN', 'GEN_ENG', 'GEN_LA', 'GEN_MUS', 'GEN_SPCH', 'GEOG', 'GEOL_SCI', 'GERMAN', 'GNDR_ST', 'GREEK', 'HDC', 'HDPS', 'HEBREW', 'HINDI', 'HIND_URD', 
+#     'HISTORY', 'HUM', 'IDEA', 'IEMS', 'IMC', 'INTG_ART', 'INTG_SCI', 'INTL_ST', 'ISEN', 'ITALIAN', 'JAPANESE', 'JAZZ_ST', 'JOUR', 'JWSH_ST', 'KELLG_CP', 
+#     'KELLG_FE', 'KELLG_MA', 'KOREAN', 'LATIN', 'LATINO', 'LATIN_AM', 'LDRSHP', 'LEGAL_ST', 'LING', 'LOC', 'LRN_DIS', 'LRN_SCI', 'MATH', 'MAT_SCI', 'MECH_ENG', 
+#     'MENA', 'MFG_ENG', 'MMSS', 'MUSIC', 'MUSICOL', 'MUSIC_ED', 'MUS_COMP', 'MUS_TECH', 'MUS_THRY', 'NEUROSCI', 'NICO', 'PERF_ST', 'PERSIAN', 'PHIL', 'PHYSICS', 
+#     'PIANO', 'POLISH', 'POLI_SCI', 'PORT', 'PRDV', 'PSYCH', 'RELIGION', 'RTVF', 'RUSSIAN', 'SESP', 'SHC', 'SLAVIC', 'SOCIOL', 'SOC_POL', 'SPANISH', 'SPCH', 
+#     'STAT', 'STRINGS', 'SWAHILI', 'TEACH_ED', 'THEATRE', 'TRANS', 'TURKISH', 'URBAN_ST', 'VOICE', 'WIND_PER', 'WM_ST', 'WRITING', 'YIDDISH'
+# ]
+academic_subjects_to_scrape = [
+    'MATH', 'COMP_SCI', 'GEN_ENG', 'IEMS', 'ELEC_ENG', 'STAT', 'COG_SCI', 'COMP_ENG', 'MECH_ENG', 'ES_APPM', 'BIOL_SCI', 'CHEM', 
+    'PHYSICS', 'CHEM_ENG', 'CIV_ENV', 'ASTRON', 'EARTH', 'CSD', 'PSYCH', 'DSGN', 'ENGLISH', 'COMM_ST', 'PERF_ST', 
+    'BMD_ENG', 'BUS_INST', 'GEOG', 'MMSS', 'PRDV', 'TEACH_ED', 'TRANS', 'ECON', 'KELLG_FE', 'KELLG_MA', 'LING'
+] # 34
 
-        Select(driver.find_element(By.CSS_SELECTOR, CSS_SELECTORS['academic_subject_dropdown'])).select_by_value(academic_subject)
-        wait_for_loading()
-        driver.find_element(By.CSS_SELECTOR, CSS_SELECTORS['search_button']).click()
-        wait_for_loading()
-        driver.find_element(By.CSS_SELECTOR, f'{CSS_SELECTORS['course_button']}0').click()
 
-        for i in range(len(driver.find_elements(By.CSS_SELECTOR, f"[id^='{CSS_SELECTORS['course_button'][1:]}']"))):
+def driver_scrape(academic_subjects):
+    
+    # Initialize driver:
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install())) # Open Google Chrome
+    driver.maximize_window() # Maximize the window
+
+    def wait_for_page_to_load(page):
+        WebDriverWait(driver, 10000).until(EC.text_to_be_present_in_element_attribute((By.CSS_SELECTOR, '#pt_pageinfo'), 'page', page))
+
+    def wait_for_loading():
+        WebDriverWait(driver, 10000).until(EC.text_to_be_present_in_element_attribute((By.CSS_SELECTOR, 'body'), 'style', 'pointer-events: none;'))
+        WebDriverWait(driver, 10000).until_not(EC.text_to_be_present_in_element_attribute((By.CSS_SELECTOR, 'body'), 'style', 'pointer-events: none;'))
+
+    def click_element(css_selector):
+        WebDriverWait(driver, 10000).until(EC.element_to_be_clickable((By.CSS_SELECTOR, css_selector))).click()
+
+    def enter_text_into_input_element(css_selector, text):
+        WebDriverWait(driver, 10000).until(EC.element_to_be_clickable((By.CSS_SELECTOR, css_selector))).send_keys(text)
+
+    def select_option_in_dropdown(css_selector, value):
+        Select(WebDriverWait(driver, 10000).until(EC.element_to_be_clickable((By.CSS_SELECTOR, css_selector)))).select_by_value(value)
+    
+    def wait(seconds):
+        # Not using time.sleep() because it crashes the concurrent process
+        try:
+            WebDriverWait(driver, seconds).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'idnfienf9f13f943nf1349nzfeufneufndfndkfd432')))
+        except TimeoutException:
+            pass
+
+    def stop(): # for debugging
+        wait(1e6)
+
+    # Log in to CAESAR:
+    driver.get(CAESAR_LOGIN_URL) # Fetch CAESAR login URL
+    enter_text_into_input_element(CSS_SELECTORS['netid_input_field'], NETID) # Enter NetID
+    enter_text_into_input_element(CSS_SELECTORS['netid_password_input_field'], NETID_PASSWORD) # Enter NetID password
+    click_element(CSS_SELECTORS['log_in_button']) # Click 'LOG IN' button
+    click_element(CSS_SELECTORS['no__other_people_use_this_device_button']) # Wait for Duo authentication, then click 'No, other people use this device.' button
+
+    wait(11 * (NUMBER_OF_DRIVERS - 1)) # This is to give time to allow the user to authenticate the Duos for other drivers before it starts going and taking over their computer.
+
+    # Navigate to CTEC search section:
+    click_element(CSS_SELECTORS['manage_classes_button']) # Click 'Manage Classes' button
+    wait_for_page_to_load('NW_VIEW_MY_CLS_FL') # Wait for loading
+    click_element(CSS_SELECTORS['search_ctecs_button']) # Click 'Search CTECs' button
+
+    # Scrape CTECS:
+    for i in range(len(academic_subjects)):
+
+        wait_for_page_to_load('NW_CTEC_SRCH_FL') # Wait for loading
+
+        select_option_in_dropdown(CSS_SELECTORS['academic_career_dropdown'], 'UGRD')
+        # wait_for_loading()
+        wait(2)
+
+        select_option_in_dropdown(CSS_SELECTORS['academic_subject_dropdown'], academic_subjects[i])
+        # wait_for_loading()
+        wait(2)
+
+        click_element(CSS_SELECTORS['search_button'])
+        wait_for_page_to_load('NW_CTEC_RSLT1_FL')
+
+        # Make sure there are any courses:
+        try:
+            WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_SELECTORS['first_course_button']))).click()
+        except TimeoutException:
+            click_element(CSS_SELECTORS['search_ctecs_button'])
+            continue
+
+        wait_for_page_to_load('NW_CTEC_RSLT2_FL')
+
+        for j in range(len(WebDriverWait(driver, 10000).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, CSS_SELECTORS['course_buttons']))))):
+            
+            if j:
+                click_element(rf"{CSS_SELECTORS['course_button']}{j}")
+                wait_for_loading()
+            
+            # Make sure there are any CTECs:
             try:
-                WebDriverWait(driver, 90).until(EC.element_to_be_clickable((By.CSS_SELECTOR, f'{CSS_SELECTORS['ctec_button']}0')))
+                WebDriverWait(driver, 60).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_SELECTORS['first_ctec_button'])))
             except TimeoutException:
+                print(f'No CTECs found for {academic_subjects[i]} course')
                 continue
-            course_name = f'{academic_subject} {driver.find_element(By.CSS_SELECTOR, rf'#MYLABEL\${i}').get_attribute('innerHTML')}'
-            course_name = course_name[:course_name.index(':')]
-            driver.find_element(By.CSS_SELECTOR, f'{CSS_SELECTORS['course_button']}{i}').click()
-            wait_for_loading()
-            for j in range(len(driver.find_elements(By.CSS_SELECTOR, f"[id^='{CSS_SELECTORS['ctec_button'][1:]}']"))):
-                term = driver.find_element(By.CSS_SELECTOR, f'{CSS_SELECTORS['term']}{j}').get_attribute('innerHTML')
-                if term in {'2023 Fall', '2024 Winter', '2024 Spring'}:
-                    driver.find_element(By.CSS_SELECTOR, f'{CSS_SELECTORS['ctec_button']}{j}').click()
+
+            for k in range(len(WebDriverWait(driver, 10000).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, CSS_SELECTORS['ctec_buttons']))))):
+                
+                quarter = WebDriverWait(driver, 10000).until(EC.presence_of_element_located((By.CSS_SELECTOR, rf'{CSS_SELECTORS['quarter']}{k}'))).get_attribute('innerHTML')
+                
+                if quarter in LATEST_QUARTERS_WITH_CTECS_PUBLISHED.values():
+
+                    course = WebDriverWait(driver, 10000).until(EC.presence_of_element_located((By.CSS_SELECTOR, rf'{CSS_SELECTORS['course']}{k}'))).get_attribute('innerHTML')
+
+                    professor = WebDriverWait(driver, 10000).until(EC.presence_of_element_located((By.CSS_SELECTOR, rf'{CSS_SELECTORS['professor']}{k}'))).get_attribute('innerHTML')
+
+                    click_element(rf"{CSS_SELECTORS['ctec_button']}{k}")
+                    
                     WebDriverWait(driver, 10000).until(EC.number_of_windows_to_be(2))
                     driver.switch_to.window(driver.window_handles[1])
-                    WebDriverWait(driver, 10000).until(EC.presence_of_element_located((By.CSS_SELECTOR, CSS_SELECTORS['rating_table'])))
-                    extract_info_from_ctec(academic_subject, course_name, term)
+
+                    WebDriverWait(driver, 10000).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div'))) # Wait for the CTEC content to load
+
+                    with open(f"data/raw/%{quarter.replace(' ', '$')}%{course.replace(' ', '$')}%{professor.replace(' ', '$')}%.html", "w", encoding="utf-8") as file:
+                        file.write(driver.page_source)
+
                     driver.close()
                     driver.switch_to.window(driver.window_handles[0])
         
-        WebDriverWait(driver, 10000).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_SELECTORS['back_arrow_button']))).click()
-
-    
-    time.sleep(1e6)
-
-
-def wait_for_loading():
-    WebDriverWait(driver, 10000).until(EC.text_to_be_present_in_element_attribute((By.CSS_SELECTOR, 'body'), 'style', 'pointer-events: none;'))
-    WebDriverWait(driver, 10000).until_not(EC.text_to_be_present_in_element_attribute((By.CSS_SELECTOR, 'body'), 'style', 'pointer-events: none;'))
+        if i != len(academic_subjects) - 1:
+            click_element(CSS_SELECTORS['back_arrow_button'])
+        else:
+            driver.quit()
 
 
-def extract_info_from_ctec(academic_subject, course_name, term):
-    course_rating_table = driver.find_elements(By.CSS_SELECTOR, CSS_SELECTORS['rating_table'])[1]
-    course_rating_average = float(course_rating_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['course_rating_average']).get_attribute('innerHTML'))
-    course_rating_student_count = int(course_rating_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['course_rating_student_count']).get_attribute('innerHTML'))
-    student_opinions = {}
-    student_opinion_index = 0
-    for student_opinion in driver.find_elements(By.CSS_SELECTOR, CSS_SELECTORS['student_opinion']):
-        student_opinions[student_opinion_index] = student_opinion.get_attribute('innerHTML')
-        student_opinion_index += 1
-    tables = driver.find_elements(By.CSS_SELECTOR, CSS_SELECTORS['table'])
-    school_demographic_info_table = tables[1]
-    number_of_weinberg_students = int(school_demographic_info_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['number_of_weinberg_students']).get_attribute('innerHTML'))
-    number_of_mccormick_students = int(school_demographic_info_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['number_of_mccormick_students']).get_attribute('innerHTML'))
-    number_of_medill_students = int(school_demographic_info_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['number_of_medill_students']).get_attribute('innerHTML'))
-    number_of_comm_students = int(school_demographic_info_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['number_of_comm_students']).get_attribute('innerHTML'))
-    number_of_sesp_students = int(school_demographic_info_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['number_of_sesp_students']).get_attribute('innerHTML'))
-    number_of_bienen_students = int(school_demographic_info_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['number_of_bienen_students']).get_attribute('innerHTML'))
-    class_demographic_info_table = tables[2]
-    number_of_freshmen = int(class_demographic_info_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['number_of_freshmen']).get_attribute('innerHTML'))
-    number_of_sophomores = int(class_demographic_info_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['number_of_sophomores']).get_attribute('innerHTML'))
-    number_of_juniors = int(class_demographic_info_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['number_of_juniors']).get_attribute('innerHTML'))
-    number_of_seniors = int(class_demographic_info_table.find_element(By.CSS_SELECTOR, CSS_SELECTORS['number_of_seniors']).get_attribute('innerHTML'))
-
-    cur_ctec = {
-        'course_rating': {
-            'average': course_rating_average,
-            'student_count': course_rating_student_count
-        },
-        'student_opinions': student_opinions,
-        'school_demographics': {
-            'Weinberg': number_of_weinberg_students,
-            'McCormick': number_of_mccormick_students,
-            'Medill': number_of_medill_students,
-            'Comm': number_of_comm_students,
-            'SESP': number_of_sesp_students,
-            'Bienen': number_of_bienen_students
-        },
-        'class_demographics': {
-            'Freshmen': number_of_freshmen,
-            'Sophomores': number_of_sophomores,
-            'Juniors': number_of_juniors,
-            'Seniors': number_of_seniors
-        }
-    }
-
-    if academic_subject not in results:
-        results[academic_subject] = {
-            course_name: {
-                term: cur_ctec
-            }
-        }
-    elif course_name not in results[academic_subject]:
-        results[academic_subject][course_name] = {
-            term: cur_ctec
-        }
-    elif term not in results[academic_subject][course_name]:
-        results[academic_subject][course_name][term] = cur_ctec
-    else:
-        existing_cumulative_ctec = results[academic_subject][course_name][term]
-        if cur_ctec['course_rating'] != existing_cumulative_ctec['course_rating']:
-            existing_cumulative_ctec['course_rating']['average'] = (existing_cumulative_ctec['course_rating']['average'] * existing_cumulative_ctec['course_rating']['student_count'] + cur_ctec['course_rating']['average'] * cur_ctec['course_rating']['student_count']) / (existing_cumulative_ctec['course_rating']['student_count'] + cur_ctec['course_rating']['student_count'])
-            existing_cumulative_ctec['course_rating']['student_count'] += cur_ctec['course_rating']['student_count']
-        if cur_ctec['student_opinions'] != existing_cumulative_ctec['student_opinions']:
-            number_of_existing_student_opinions = len(existing_cumulative_ctec['student_opinions'])
-            for i in range(len(cur_ctec['student_opinions'])):
-                existing_cumulative_ctec['student_opinions'][number_of_existing_student_opinions + i] = cur_ctec['student_opinions'][i]
-        for demographics in {'school_demographics', 'class_demographics'}:
-            if cur_ctec[demographics] != existing_cumulative_ctec[demographics]:
-                for demographic in existing_cumulative_ctec[demographics]:
-                    existing_cumulative_ctec[demographics][demographic] += cur_ctec[demographics][demographic]
-
-    with open('data/data.json', 'w', encoding='utf-8') as f:
-        json.dump(results, f, ensure_ascii=False, indent=4)
+def get_drivers_academic_subjects(number_of_drivers, academic_subjects):
+    res = [[] for i in range(NUMBER_OF_DRIVERS)]
+    while True:
+        for driver_academic_subjects in res:
+            if not academic_subjects:
+                return res
+            driver_academic_subjects.append(academic_subjects.pop(random.randint(0, len(academic_subjects) - 1)))
 
 
+if __name__ == '__main__':
 
+    drivers_academic_subjects = get_drivers_academic_subjects(NUMBER_OF_DRIVERS, academic_subjects_to_scrape)
 
+    start_time = time()
 
+    with concurrent.futures.ProcessPoolExecutor(max_workers=NUMBER_OF_DRIVERS) as executor:
+        executor.map(driver_scrape, drivers_academic_subjects)
 
-scrape()
-
-
-
-
-
-
-
-
-
-
-
-
-
-def change_academic_subject_and_enter_into_those_ctecs(new_academic_subject):
-    # Locate the back arrow button
-    back_arrow_button = WebDriverWait(driver, 10000).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_SELECTORS['back_arrow_button'])))
-    # Click the back arrow button button
-    back_arrow_button.click()
-    # Enter into the CTECs for the new academic subject
-    enter_into_ctecs_for_academic_subject(new_academic_subject)
-
-def scrape_ctecs_for_course(academic_subject, course_number):
-    course_name = academic_subject + ' ' + course_number
-    x = WebDriverWait(driver, 10000).until(EC.text_to_be_present_in_element_attribute((By.CSS_SELECTOR, r'#MYDESCR\$0'), 'innerHTML', course_number))
-    # Count the number of CTECs for this particular course
-    number_of_ctecs = len(WebDriverWait(driver, 10000).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, CSS_SELECTORS['ctecs']))))
-    for i in range(number_of_ctecs):
-        # Locate the term container
-        term_container = WebDriverWait(driver, 10000).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_SELECTORS['term_container'] + str(i))))
-        term = term_container.get_attribute('innerHTML')
-        # If the term of the CTEC is one of the recent variety
-        if term in ['2023 Fall', '2024 Winter', '2024 Spring']:
-            # Click the CTEC button
-            term_container.click()
-            # Wait 1 second for the CTEC to open in a separate tab
-            time.sleep(0.5)
-            # Switch the active tab to the newly opened CTEC tab
-            driver.switch_to.window(driver.window_handles[1])
-            # Get the course rating
-            course_rating = float(WebDriverWait(driver, 10000).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, CSS_SELECTORS['course_rating_container'])))[1].get_attribute('innerHTML'))
-            # # Get the number of undergradute school students that are McCormick
-            
-            undergraduate_school_demographics_image_url = driver.find_element(By.CSS_SELECTOR, CSS_SELECTORS['undergraduate_school_demographics_image']).get_attribute('src')
-            text_from_undergraduate_school_demographics_image = pytesseract.image_to_string(Image.open(BytesIO(requests.get(undergraduate_school_demographics_image_url).content)))
-            index_of_mccormick = text_from_undergraduate_school_demographics_image.index('McCormick')
-            number_of_undergraduate_students_that_are_mccormick = int(text_from_undergraduate_school_demographics_image[text_from_undergraduate_school_demographics_image.index('(', index_of_mccormick) + 1 : text_from_undergraduate_school_demographics_image.index(')', index_of_mccormick)])
-            index_of_total = text_from_undergraduate_school_demographics_image.index('Total')
-            total_number_of_undergraduate_students = int(text_from_undergraduate_school_demographics_image[text_from_undergraduate_school_demographics_image.index('(', index_of_total) + 1 : text_from_undergraduate_school_demographics_image.index(')', index_of_total)])
-            
-            class_demographics_image_url = driver.find_element(By.CSS_SELECTOR, CSS_SELECTORS['class_demographics_image']).get_attribute('src')
-            text_from_class_demographics_image = pytesseract.image_to_string(Image.open(BytesIO(requests.get(class_demographics_image_url).content)))
-            index_of_sophomore = text_from_class_demographics_image.index('Sophomore')
-            number_of_class_students_that_are_sophomores = int(text_from_class_demographics_image[text_from_class_demographics_image.index('(', index_of_sophomore) + 1 : text_from_class_demographics_image.index(')', index_of_sophomore)])
-            index_of_total = text_from_class_demographics_image.index('Total')
-            total_number_of_class_students = int(text_from_class_demographics_image[text_from_class_demographics_image.index('(', index_of_total) + 1 : text_from_class_demographics_image.index(')', index_of_total)])
-            
-            driver.close()
-            cursor.execute('''
-                INSERT INTO CTECs (course_name, term, course_rating, count_undergrad_students_mccormick, count_total_undergrad_students, count_class_students_sophomores, count_total_class_students)
-                VALUES (?, ?, ?, ?, ?, ?, ?);
-            ''', (course_name, term, course_rating, number_of_undergraduate_students_that_are_mccormick, total_number_of_undergraduate_students, number_of_class_students_that_are_sophomores, total_number_of_class_students))
-            conn.commit()
-            driver.switch_to.window(driver.window_handles[0])
-
-def scrape_ctecs_for_all_courses_of_a_certain_academic_subject(academic_subject):
-    number_of_courses = len(WebDriverWait(driver, 10000).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, CSS_SELECTORS['courses']))))
-    for i in range(number_of_courses):
-        time.sleep(10)
-        course_button = WebDriverWait(driver, 10000).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_SELECTORS['course_button'] + str(i))))
-        course_name = course_button.get_attribute('innerHTML')
-        course_button.click()
-        scrape_ctecs_for_course(academic_subject, course_name[:course_name.index(':')])
-
-def scrape_ctecs_for_multiple_academic_subjects(academic_subjects):
-    for academic_subject in academic_subjects:
-        enter_into_ctecs_for_academic_subject(academic_subject)
-        scrape_ctecs_for_all_courses_of_a_certain_academic_subject(academic_subject.split()[0])
-        WebDriverWait(driver, 10000).until(EC.element_to_be_clickable((By.CSS_SELECTOR, CSS_SELECTORS['back_arrow_button']))).click()
+    print(f"Scraping completed in {(time() - start_time):.0f} seconds.")

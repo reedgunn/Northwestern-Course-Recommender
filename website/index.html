@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Ranker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Course Ranker</h1>
+        <form id="course-form">
+            <div class="form-group">
+                <label for="school">Select Your School:</label>
+                <select id="school" required>
+                    <option value="" disabled selected>Select your school</option>
+                    <option value="Weinberg">Weinberg</option>
+                    <option value="McCormick">McCormick</option>
+                    <option value="Medill">Medill</option>
+                    <option value="Comm">Comm</option>
+                    <option value="SESP">SESP</option>
+                    <option value="Bienen">Bienen</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="year">Select Your Year:</label>
+                <select id="year" required>
+                    <option value="" disabled selected>Select your year</option>
+                    <option value="Freshman">Freshman</option>
+                    <option value="Sophomore">Sophomore</option>
+                    <option value="Junior">Junior</option>
+                    <option value="Senior">Senior</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="quarter">Select Quarter Type:</label>
+                <select id="quarter" required>
+                    <option value="" disabled selected>Select quarter type</option>
+                    <option value="Spring">Spring</option>
+                    <option value="Winter">Winter</option>
+                    <option value="Fall">Fall</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="courses">Select Courses:</label>
+                <select id="courses" multiple required>
+                    <!-- Options will be populated dynamically -->
+                </select>
+                <small>Hold down the Ctrl (windows) or Command (Mac) button to select multiple courses.</small>
+            </div>
+
+            <button type="submit">Rank Courses</button>
+        </form>
+
+        <div id="results" class="results">
+            <!-- Ranking results will appear here -->
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
