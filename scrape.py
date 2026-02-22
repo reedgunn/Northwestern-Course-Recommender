@@ -17,8 +17,8 @@ CSS_SELECTORS = {
     "netid_password_input_field": "#idToken2",
     "log_in_button": "#loginButton_0",
     "no__other_people_use_this_device_button": "#dont-trust-browser-button",
-    "manage_classes_button": r"#PTNUI_LAND_REC14\$0_row_8",
-    "search_ctecs_button": r"[id^='win'][id$='div\$ICField\$11\$\$7']",
+    "manage_classes_button": r"#PTNUI_LAND_REC14\$0_row_6",
+    "search_ctecs_button": r"[id^='win'][id$='divPTGP_STEPS_L1_row\$7']",
     "academic_career_dropdown": "#NW_CT_PB_SRCH_ACAD_CAREER",
     "academic_subject_dropdown": "#NW_CT_PB_SRCH_SUBJECT",
     "search_button": r"#NW_CT_PB_SRCH_SRCH_BTN\$span",
@@ -31,13 +31,11 @@ CSS_SELECTORS = {
 }
 
 PAGES = {
-    "view_my_class_schedule": "NW_TERM_STA1_FL",
+    "view_my_class_schedule": "NW_VIEW_MY_CLS_FL",
     "search_ctecs": "NW_CTEC_SRCH_FL",
     "search_ctecs_results_by_course": "NW_CTEC_RSLT1_FL",
     "search_results": "NW_CTEC_RSLT2_FL"
 }
-
-CHROMEDRIVER_PATH = "/opt/homebrew/bin/chromedriver"
 
 UNDERGRADUATE_ACADEMIC_CAREER_DROPDOWN_INDEX = 15
 
@@ -50,9 +48,9 @@ GARBAGE_CSS_SELECTOR = "#snjfsdfndjkf"
 
 CAESAR_LOGIN_URL = "https://caesar.ent.northwestern.edu/psc/CS860PRD/EMPLOYEE/SA/c/NUI_FRAMEWORK.PT_LANDINGPAGE.GBL"
 
-LONGEST_WAIT = float("inf")
+LONGEST_WAIT = float('inf')
 
-NUM_WORKERS = 12
+NUM_WORKERS = 1
 
 SECONDS_NEEDED_TO_AUTHENTICATE_WORKER = 12
 SECONDS_NEEDED_TO_AUTHENTICATE_ALL_OTHER_WORKERS = SECONDS_NEEDED_TO_AUTHENTICATE_WORKER * (NUM_WORKERS - 1)
@@ -102,7 +100,7 @@ def stop(driver): # for debugging
 
 def get_most_recent_quarter_with_ctecs_published(driver, num_ctecs):
     res = ""
-    res_numerical = float("-inf")
+    res_numerical = float('-inf')
     for ctec_index in range(num_ctecs):
         quarter = get_ctec_quarter(driver, ctec_index)
         if quarter[5:7] == "Su":
@@ -197,7 +195,7 @@ def scrape_academic_subjects(driver, academic_subjects_indices):
     driver.quit()
 
 def init_driver():
-    res = Chrome(service=Service(CHROMEDRIVER_PATH))
+    res = Chrome(service=Service(ChromeDriverManager().install()))
     res.maximize_window()
     return res
 
@@ -241,8 +239,8 @@ if __name__ == "__main__":
 
     start_time = time()
 
-    with ThreadPoolExecutor(max_workers=len(workers_undergraduate_academic_subjects_dropdown_indices)) as executor:
-        executor.map(worker, workers_undergraduate_academic_subjects_dropdown_indices)
-    # worker(workers_undergraduate_academic_subjects_dropdown_indices[randint(0, len(workers_undergraduate_academic_subjects_dropdown_indices) - 1)]) # for testing
+    # with ThreadPoolExecutor(max_workers=len(workers_undergraduate_academic_subjects_dropdown_indices)) as executor:
+    #     executor.map(worker, workers_undergraduate_academic_subjects_dropdown_indices)
+    worker(workers_undergraduate_academic_subjects_dropdown_indices[randint(0, len(workers_undergraduate_academic_subjects_dropdown_indices) - 1)]) # for testing
 
     print(f"Scraping completed in {((time() - start_time) / 60):.1f} minutes.")
